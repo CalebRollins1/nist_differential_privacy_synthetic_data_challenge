@@ -3,6 +3,9 @@
     All rights reserved.
 """
 
+#prepocess uses met@file to return met@date and postprocess use takes as an input
+#problmes can be fixed by returning valid met@data file from preprocess,
+#with clues in postprocess about how this should look
 import json
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
@@ -275,6 +278,8 @@ def preprocess_nist_data(input_file, meta_file, subsample=False):
             pass  # skip that column
         elif v == 'int':
             output_df_columns.append(original_df[k] / 100.0)
+        elif v== 'float':
+            output_df_columns.append(original_df[k])
         elif v == 'int_v':
             val_column = original_df[k].values.astype(np.float32)
             is_valid_column = (
@@ -332,6 +337,10 @@ def postprocess_data(input_data, metadata, col_maps, columns_list, greedy=True):
             val_col = np.clip(val_col, 0, metadata[k]['maxval'])
             output_df_columns[k] = val_col
             cur_idx += 1
+        elif v=='float':
+            val_col = (input_data.iloc[:, cur_idx])#.astype(np.int32)
+            output_df_columns[k] = val_col
+            cur_idx += 1
         elif v == 'int_v':
             is_valid_column = (input_data.iloc[:, cur_idx] > 0.5)
             value_column = (
@@ -358,13 +367,75 @@ def postprocess_data(input_data, metadata, col_maps, columns_list, greedy=True):
     output_df = pd.DataFrame(output_df_columns)
     return output_df
 
+def preprocess_rdd2d_data(input_file, meta_file, subsample=False):
+    """
+    Applies pre-processing to the input data.
+
+    returns the following
+    original_df: the input data in the original format.
+    input_df: the input data after beeing formatted.
+    metadata: the metadata dictionary.
+    subsample: this argument is True only when we debug the model to work on samller datasets.
+    """
+    original_df = pd.read_csv(input_file).drop('Unnamed: 0',axis = 1)
+    if subsample:
+        original_df = original_df.sample(100000)
+    metadata = json.loads(open(meta_file).read())
+    columns_list = original_df.columns.tolist()
+
+    # Make it easy iso perform one hot encoding
+    # Mappings areisbased on the codebook file.
+
+    #select_cols = ['SPLIT', 'OWNERSHP', 'VETWWI','VALUEH', 'CITYPOP']
+    #original_df = original_df[select_cols]
+    #col_maps = {k:col_maps[k] for k in select_cols}
+    col_maps = {
+    "X":'float',
+    "Y":'float'
+    }
+    output_df_columns = []
+    for k in columns_list:
+        assert k in columns_list, 'Cannot find pre-prepossing of column {}'.format(k)
+        v = col_maps[k]
+        if isinstance(v, dict):
+            print('Processing [ {} ] '.format(k))
+            mapped_col = original_df[k].map(v)
+            if (len(v) == 2):
+                output_df_columns.append(mapped_col)
+            else:
+                mapped_vals = mapped_col.values.reshape((-1, 1))
+                ohe_col = pd.DataFrame(
+                    data=OneHotEncoder(n_values=len(v), sparse=False).fit_transform(mapped_vals).astype(np.float32), index=original_df.index)
+                output_df_columns.append(ohe_col)
+        elif v == 'void':
+            pass  # skip that column
+        elif v == 'int':
+            output_df_columns.append(original_df[k] / 100.0)
+        elif v== 'float':
+            output_df_columns.append(original_df[k])
+        elif v == 'int_v':
+            val_column = original_df[k].values.astype(np.float32)
+            is_valid_column = (
+                original_df[k] != metadata[k]['maxval']).astype(np.float32)
+            print(k, ' - ', is_valid_column.sum(),
+                  ' / ', is_valid_column.shape[0])
+            val_column_processed = (is_valid_column) * val_column / 100.0
+            output_df_columns.append(
+                is_valid_column.rename('{}_valid'.format(k)))
+            output_df_columns.append(val_column_processed)
+        else:
+            raise Exception('Invalid mapping')
+    output_df = pd.concat(output_df_columns, 1)
+    print(output_df.shape)
+    return original_df, output_df, metadata, col_maps, columns_list
+
 
 
 if __name__ == '__main__':
     """ Only for testing """
-    original_df, output_data, metadata, col_maps, columns_list = preprocess_nist_data(
-        '../data/colorado.csv',
-        '../data/colorado-specs.json', subsample=True)
+    original_df, output_data, metadata, col_maps, columns_list = preprocess_rdd2d_data(
+        'input.csv',
+        'metadata.json', subsample=False)
     output_df = postprocess_data(output_data, metadata, col_maps, columns_list, greedy=True)
     assert(output_df.shape == original_df.shape)
     match_count = 0

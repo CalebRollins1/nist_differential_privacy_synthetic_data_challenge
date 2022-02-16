@@ -15,7 +15,13 @@ import tensorflow as tf
 from tensorflow.core.framework import summary_pb2
 import time
 
-from tensorflow.distributions import Bernoulli, Categorical
+#tf.compat.v1.disable_eager_execution()
+
+#from tensorflow.distributions import Bernoulli, Categorical
+#from tensorflow_probability.distributions import Bernoulli, Categorical
+import tensorflow_probability as tfp
+Bernoulli = tfp.distributions.Bernoulli
+Categorical = tfp.distributions.Categorical
 
 from differential_privacy.dp_sgd.dp_optimizer import dp_optimizer
 from differential_privacy.dp_sgd.dp_optimizer import sanitizer
@@ -23,7 +29,8 @@ from differential_privacy.dp_sgd.dp_optimizer import utils
 from differential_privacy.privacy_accountant.tf import accountant
 
 
-flags = tf.app.flags
+#flags = tf.app.flags
+flags = tf.compat.v1.flags
 flags.DEFINE_string('input_file', 'input.csv', 'Input file')
 flags.DEFINE_string('output_file', 'output.csv', 'output file')
 flags.DEFINE_string('meta_file', 'metadata.json', 'metadata file')
@@ -91,6 +98,7 @@ def generator(input_node, hidden_dim, output_dim):
 
 
 def nist_data_format(output, metadata, columns_list, col_maps):
+    #doesn't use met@data
     """ Output layer format for generator data """
     with tf.name_scope('nist_format'):
         output_list = []
@@ -121,6 +129,7 @@ def nist_data_format(output, metadata, columns_list, col_maps):
 
 
 def nist_sampling_format(output, metadata, columns_list, col_maps):
+    #doesnt use met@dsata
     """
     Output layer format for generator data plus performing random sampling
      from the output softmax and bernoulli distributions.
@@ -158,6 +167,7 @@ def nist_sampling_format(output, metadata, columns_list, col_maps):
 
 
 def sample_dataset(sess, sampling_output, output_fname, columns_list, sampling_size):
+    #uses met@data from __main__
     """ Performs sampling to output synthetic data from the generative model.
     Saves the result to output_fname file.
     """
@@ -181,7 +191,8 @@ if __name__ == '__main__':
     FLAGS = flags.FLAGS
 
     # Reading input data
-    original_df, input_data, metadata, col_maps, columns_list = data_utils.preprocess_nist_data(
+
+    original_df, input_data, metadata, col_maps, columns_list = data_utils.preprocess_rdd2d_data(
         FLAGS.input_file, FLAGS.meta_file, subsample=False)
 
     input_data = input_data.values  # .astype(np.float32)

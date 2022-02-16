@@ -28,7 +28,8 @@ from differential_privacy.dp_sgd.dp_optimizer import utils
 from differential_privacy.dp_sgd.per_example_gradients import per_example_gradients
 
 
-class DPGradientDescentOptimizer(tf.train.RMSPropOptimizer):
+#class DPGradientDescentOptimizer(tf.train.RMSPropOptimizer):
+class DPGradientDescentOptimizer(tf.keras.optimizers.RMSprop):
     """Differentially private gradient descent optimizer.
     """
 
